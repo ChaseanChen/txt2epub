@@ -114,7 +114,9 @@ def main():
     print(f"开始处理 {len(tasks)} 个任务...")
     print("=" * 50)
     
+    # 初始化生成器
     generator = EPubGenerator(font_path=font_path)
+    
     start_time = time.time()
     success_count = 0
     
@@ -122,19 +124,18 @@ def main():
         print(f"\n>>> 任务 ({i+1}/{len(tasks)})")
         
         txt_full_path = os.path.join(input_dir, fname)
-        # 清理文件名，防止特殊字符导致保存失败
         safe_name = sanitize_filename(book_title)
         epub_full_path = os.path.join(output_dir, f"{safe_name}.epub")
         
         try:
-            generator.run(txt_full_path, epub_full_path, book_title, book_author)
+            # 调用重命名后的核心方法 convert
+            generator.convert(txt_full_path, epub_full_path, book_title, book_author)
             success_count += 1
         except KeyboardInterrupt:
             print("\n[!] 任务被用户中断。")
             break
         except Exception as e:
             print(f"  [Fail] 处理文件 '{fname}' 时发生错误: {e}")
-            # 打印堆栈信息以便调试
             traceback.print_exc()
 
     duration = time.time() - start_time
