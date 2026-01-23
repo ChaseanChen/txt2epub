@@ -18,9 +18,7 @@ def sanitize_filename(filename):
     清理文件名中的非法字符，防止保存文件时出错。
     保留空格、中文字符等合法字符。
     """
-    # 替换 Windows/Linux 文件系统中的非法字符
     cleaned = re.sub(r'[\\/*?:"<>|]', "", filename)
-    # 去除首尾空格和点（Windows 不喜欢文件名以点结尾）
     return cleaned.strip().strip('.')
 
 def ensure_dirs(root_path, subdirs):

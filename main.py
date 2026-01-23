@@ -6,6 +6,61 @@ from typing import List, Tuple, Optional
 from utils import get_app_root, sanitize_filename, ensure_dirs
 from converter import EPubGenerator
 
+# 默认 CSS 模板内容，当 style.css 不存在时写入
+DEFAULT_CSS_TEMPLATE = """/* EPUB 样式表 (可自由修改) */
+
+/* 全局设置 */
+body {
+    line-height: 1.8;
+    text-align: justify;
+    margin: 0 5px;
+    background-color: #fcfcfc;
+    /* font-family 会由程序根据设置动态插入，这里不需要写 */
+}
+
+/* 段落样式 */
+p {
+    text-indent: 2em;
+    margin: 0.8em 0;
+    font-size: 1em;
+}
+
+/* 标题样式 */
+h1 {
+    font-weight: bold;
+    text-align: center;
+    margin: 2em 0 1em 0;
+    font-size: 1.6em;
+    page-break-before: always;
+    color: #333;
+}
+
+/* 图片样式 */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1em auto;
+}
+
+/* 封面容器 */
+div.cover {
+    text-align: center;
+    height: 100%;
+}
+"""
+
+def init_assets(assets_dir: str):
+    """初始化资源目录，如果缺少 style.css 则创建默认的"""
+    css_path = os.path.join(assets_dir, 'style.css')
+    if not os.path.exists(css_path):
+        try:
+            with open(css_path, 'w', encoding='utf-8') as f:
+                f.write(DEFAULT_CSS_TEMPLATE)
+            print(f"[Init] 已生成默认样式表: {css_path}")
+        except Exception as e:
+            print(f"[Warning] 无法创建默认样式表: {e}")
+
 def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
     """处理文件选择逻辑"""
     txt_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.txt')]
@@ -26,8 +81,7 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
         
         if choice == 'a':
             print(">> 已选择全部文件")
-            print(">> 如果直接回车，程序将使用文件名作为书名，'Unknown' 作为作者。")
-            batch_author_input = input("请输入统一作者名 (可选): ").strip()
+            batch_author_input = input("请输入统一作者名 (默认为 'Unknown'): ").strip()
             
             selected_files = []
             for f in txt_files:
@@ -64,13 +118,13 @@ def select_font(fonts_dir: str) -> Optional[str]:
         return None
 
     print("\n[2] 选择字体:")
-    print("  [0] 不使用嵌入字体 (推荐，文件更小，兼容性更好)")
+    print("  [0] 不使用嵌入字体 (推荐)")
     for i, f in enumerate(font_files):
         try:
-            file_size_mb = os.path.getsize(os.path.join(fonts_dir, f)) / (1024 * 1024)
-            print(f"  [{i+1}] {f} ({file_size_mb:.1f} MB)")
-        except OSError:
-            print(f"  [{i+1}] {f} (Size unknown)")
+            size = os.path.getsize(os.path.join(fonts_dir, f)) / (1024 * 1024)
+            print(f"  [{i+1}] {f} ({size:.1f} MB)")
+        except Exception:
+            print(f"  [{i+1}] {f}")
     
     while True:
         c = input("字体序号: ").strip()
@@ -80,28 +134,30 @@ def select_font(fonts_dir: str) -> Optional[str]:
             idx = int(c) - 1
             if 0 <= idx < len(font_files):
                 return os.path.join(fonts_dir, font_files[idx])
-            print("序号越界。")
         except ValueError:
-            print("输入无效。")
-    return None
+            pass
+        print("输入无效。")
 
 def main():
     app_root = get_app_root()
     input_dir = os.path.join(app_root, 'input')
     output_dir = os.path.join(app_root, 'output')
     fonts_dir = os.path.join(app_root, 'fonts')
+    assets_dir = os.path.join(app_root, 'assets')  # 新增
 
     try:
-        ensure_dirs(app_root, ['input', 'output', 'fonts'])
+        ensure_dirs(app_root, ['input', 'output', 'fonts', 'assets'])
+        init_assets(assets_dir)  # 初始化 CSS
     except PermissionError as e:
         print(f"[Fatal] {e}")
         input("按回车退出...")
         return
 
     print("\n" + "=" * 50)
-    print("     TXT 转 EPUB 转换器 (Architect Edition)")
+    print("     TXT 转 EPUB 转换器 (Architect Edition v2.0)")
     print("=" * 50)
     print(f"工作目录: {app_root}")
+    print("样式文件: assets/style.css (可编辑)")
 
     tasks = select_files(input_dir)
     if not tasks:
@@ -114,8 +170,8 @@ def main():
     print(f"开始处理 {len(tasks)} 个任务...")
     print("=" * 50)
     
-    # 初始化生成器
-    generator = EPubGenerator(font_path=font_path)
+    # 注入 assets_dir
+    generator = EPubGenerator(font_path=font_path, assets_dir=assets_dir)
     
     start_time = time.time()
     success_count = 0
@@ -128,7 +184,6 @@ def main():
         epub_full_path = os.path.join(output_dir, f"{safe_name}.epub")
         
         try:
-            # 调用重命名后的核心方法 convert
             generator.convert(txt_full_path, epub_full_path, book_title, book_author)
             success_count += 1
         except KeyboardInterrupt:
