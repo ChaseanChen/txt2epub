@@ -1,5 +1,5 @@
 # ==========================
-# 操作系统 & 通用临时文件
+# Operating System & General Temporary Files
 # ==========================
 .DS_Store
 Thumbs.db
@@ -13,7 +13,7 @@ desktop.ini
 *.pid.lock
 
 # ==========================
-# 日志文件 (Logs)
+# Log files (Logs)
 # ==========================
 *.log
 *.log.*
@@ -25,7 +25,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # ==========================
-# 编辑器 & IDE 配置
+# Editor & IDE Configuration
 # ==========================
 # VS Code
 .vscode/
@@ -40,7 +40,7 @@ yarn-error.log*
 *.sublime-project
 
 # ==========================
-# 密钥与环境变量
+# Keys and Environment Variables
 # ==========================
 .env
 .dotenv
@@ -49,28 +49,28 @@ env.bak/
 venv.bak/
 
 # ==========================
-# Python 开发
+# Python development
 # ==========================
-# 字节码
+# bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# 虚拟环境
+# virtual environment
 .venv/
 env/
 venv/
 ENV/
 
-# 包分发与构建 (Distribution / Build)
+# Distribution / Build
 build/
 dist/
 *.egg-info/
 .eggs/
 *.egg
 
-# 测试与覆盖率 (Testing & Coverage)
+# Testing & Coverage
 .tox/
 .nox/
 .coverage
@@ -82,7 +82,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# 类型检查 (Type Checking)
+# Type Checking
 .mypy_cache/
 .dmypy.json
 .pyre/
@@ -95,20 +95,20 @@ coverage.xml
 cython_debug/
 
 # ==========================
-# Node.js / 前端
+# Node.js / frontend
 # ==========================
 node_modules/
 .cache/
 
 # ==========================
-# 数据库文件 (本地开发用)
+# database file
 # ==========================
 *.sqlite
 *.sqlite3
 *.db
 
 # ==========================
-# 压缩包与归档
+# Compressed files and archives
 # ==========================
 *.zip
 *.tar
@@ -118,7 +118,7 @@ node_modules/
 *.gz
 
 # ==========================
-# 其他语言/工具 
+# other language and tools specific ignores
 # ==========================
 # Java
 *.class
@@ -131,7 +131,7 @@ node_modules/
 *.toc
 
 # ==========================
-# 项目自定义忽略
+# Project Custom Ignore
 # ==========================
 draft/
 draft*.md 
