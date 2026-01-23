@@ -1,3 +1,4 @@
+# converter.py
 import os
 import re
 import uuid
@@ -11,18 +12,22 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class EPubGenerator:
     def __init__(self, font_path: Optional[str] = None):
         self.font_path = font_path
-        # 优化正则：兼容更广泛的章节命名，如 "Chapter 1", "第一部" 等
+        # 优化正则：
+        # 1. 兼容 "第x章", "Chapter x"
+        # 2. 使用非捕获组 (?:...) 优化性能
+        # 3. 匹配行首空白 ^\s*
         self.chapter_pattern = re.compile(
-            r'(^\s*(?:第[0-9零一二三四五六七八九十百千]+[章节回卷部]|Chapter\s?\d+).*?$)', 
+            r'(^\s*(?:第[0-9零一二三四五六七八九十百千两]+[章节回卷部]|Chapter\s?\d+).*?$)', 
             re.MULTILINE | re.IGNORECASE
         )
+        # 标题最大允许长度（超过此长度的行，即使匹配正则，也被视为正文，防止误判）
+        self.MAX_TITLE_LENGTH = 40 
+        
         # 用于生成 UUID 的固定命名空间
         self.NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "ebook.converter.local")
 
     def _generate_stable_id(self, title: str, author: str) -> str:
-        """
-        生成基于书名和作者的确定性 UUID。
-        """
+        """生成基于书名和作者的确定性 UUID。"""
         norm_title = title.strip().lower()
         norm_author = author.strip().lower()
         unique_string = f"{norm_title}::{norm_author}"
@@ -30,7 +35,8 @@ class EPubGenerator:
 
     def _get_default_css(self, font_file_name: Optional[str] = None) -> str:
         font_face = ""
-        font_family = "'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+        # 优化字体栈，优先显示常见中文字体
+        font_family = "'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans CN', sans-serif"
         
         if font_file_name:
             font_face = f'@font-face {{ font-family: "CustomFont"; src: url("fonts/{font_file_name}"); }}'
@@ -40,12 +46,13 @@ class EPubGenerator:
             {font_face}
             body {{ font-family: {font_family}; line-height: 1.8; text-align: justify; margin: 0 5px; background-color: #fcfcfc; }}
             p {{ text-indent: 2em; margin: 0.8em 0; font-size: 1em; }}
-            h1 {{ font-weight: bold; text-align: center; margin: 2em 0 1em 0; font-size: 1.6em; page-break-before: always; }}
+            h1 {{ font-weight: bold; text-align: center; margin: 2em 0 1em 0; font-size: 1.6em; page-break-before: always; color: #333; }}
             div.cover {{ text-align: center; height: 100%; }}
             img {{ max-width: 100%; height: auto; }}
         '''
 
     def _try_get_cover(self, txt_path: str) -> Tuple[Optional[str], Optional[str]]:
+        """尝试查找同目录下的封面图片"""
         base_dir = os.path.dirname(txt_path)
         file_basename = os.path.splitext(os.path.basename(txt_path))[0]
         valid_exts = ['.jpg', '.jpeg', '.png']
@@ -63,36 +70,63 @@ class EPubGenerator:
         return None, None
 
     def _parse_chapters(self, content: str) -> List[Tuple[str, str]]:
-        matches = list(self.chapter_pattern.finditer(content))
+        """
+        核心分章逻辑 (Refined)
+        使用 finditer 代替 split，并增加误判校验。
+        """
+        # 1. 找出所有潜在的标题匹配项
+        raw_matches = list(self.chapter_pattern.finditer(content))
+        
+        # 2. 过滤无效标题（例如过长的行）
+        valid_matches = []
+        for m in raw_matches:
+            title_text = m.group(1).strip()
+            # 如果标题过长，很可能是正文中的长句，跳过
+            if len(title_text) <= self.MAX_TITLE_LENGTH:
+                valid_matches.append(m)
+        
         chapters = []
 
-        if not matches:
-            logging.info("未检测到明显章节目录，作为单章处理。")
+        # 情况 A: 没有检测到任何有效章节，整本作为一章
+        if not valid_matches:
+            logging.info("未检测到有效章节目录，作为单章处理。")
             return [("正文", content)]
 
-        # 处理序章/前言
-        preface_end = matches[0].start()
-        if preface_end > 0:
-            preface_content = content[:preface_end].strip()
-            if len(preface_content) > 50: 
+        # 情况 B: 处理序章/前言 (第一个有效章节之前的内容)
+        first_match_start = valid_matches[0].start()
+        if first_match_start > 0:
+            preface_content = content[:first_match_start].strip()
+            # 只有当序章内容有一定长度时才添加，避免添加空字符串
+            if len(preface_content) > 0: 
                 chapters.append(("序言", preface_content))
 
-        count = len(matches)
-        for i, match in enumerate(matches):
+        # 情况 C: 提取各章节内容
+        count = len(valid_matches)
+        for i, match in enumerate(valid_matches):
             title = match.group(1).strip()
-            start_idx = match.end()
-            end_idx = matches[i+1].start() if i + 1 < count else len(content)
             
-            body = content[start_idx:end_idx]
-            chapters.append((title, body.strip()))
+            # 当前章节内容的起始位置 = 当前标题的结束位置
+            start_idx = match.end()
+            
+            # 当前章节内容的结束位置 = 下一个标题的起始位置 (如果是最后一章，则到文件末尾)
+            if i + 1 < count:
+                end_idx = valid_matches[i+1].start()
+            else:
+                end_idx = len(content)
+            
+            body = content[start_idx:end_idx].strip()
+            
+            # 即使 body 为空（例如连续标题），也保留该章节（作为目录节点）
+            chapters.append((title, body))
             
         return chapters
 
     def run(self, txt_path: str, epub_path: str, title: str, author: str):
-        print(f"\n正在处理: [{os.path.basename(txt_path)}]")
+        file_name = os.path.basename(txt_path)
+        print(f"\n正在处理: [{file_name}]")
         
         book = epub.EpubBook()
-        # [关键修复] 使用确定性 ID
+        # ID 处理
         book_id = self._generate_stable_id(title, author)
         book.set_identifier(book_id)
         book.set_title(title)
@@ -129,20 +163,27 @@ class EPubGenerator:
         css_item = epub.EpubItem(uid="style_css", file_name="style.css", media_type="text/css", content=css_content)
         book.add_item(css_item)
 
-        # 读取内容
+        # 读取内容 (增强编码兼容性)
         content = ""
-        try:
-            with open(txt_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except UnicodeDecodeError:
+        encodings = ['utf-8', 'gb18030', 'gbk', 'big5', 'utf-16']
+        for enc in encodings:
             try:
-                print("  [i] UTF-8 解码失败，尝试 GB18030 (兼容GBK)...")
-                with open(txt_path, 'r', encoding='gb18030') as f:
+                with open(txt_path, 'r', encoding=enc) as f:
                     content = f.read()
-            except Exception:
-                print(f"  [Error] 无法识别文件编码，跳过: {txt_path}")
+                if enc != 'utf-8':
+                    print(f"  [i] 使用 {enc} 编码成功读取。")
+                break
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                print(f"  [Error] 读取文件出错: {e}")
                 return
+        
+        if not content:
+            print(f"  [Error] 无法识别文件编码，跳过: {txt_path}")
+            return
 
+        # 调用改进后的分章逻辑
         parsed_chapters = self._parse_chapters(content)
         print(f"  [i] 识别到 {len(parsed_chapters)} 个章节")
         
@@ -152,13 +193,19 @@ class EPubGenerator:
             c = epub.EpubHtml(title=chap_title, file_name=file_name, lang='zh-cn')
             c.add_item(css_item)
             
+            # HTML 内容构建
             lines = []
             for line in chap_body.splitlines():
                 clean_line = line.strip()
                 if clean_line:
+                    # 简单转义 HTML 特殊字符，防止内容破坏结构
+                    clean_line = clean_line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                     lines.append(f"<p>{clean_line}</p>")
             
-            c.content = f'<h1>{chap_title}</h1>' + "".join(lines)
+            # 即使内容为空，也要有基本的结构
+            body_content = "".join(lines) if lines else "<p></p>"
+            c.content = f'<h1>{chap_title}</h1>{body_content}'
+            
             book.add_item(c)
             epub_chapters.append(c)
 
@@ -168,8 +215,6 @@ class EPubGenerator:
         book.add_item(epub.EpubNav())
         
         # 定义阅读顺序 (Spine)
-        # 修复点：删除了错误的 if book.cover_image 判断
-        # book.set_cover 会自动处理封面相关的 manifest，我们只需要定义正文顺序
         book.spine = ['nav'] + epub_chapters
 
         # 确保输出目录存在

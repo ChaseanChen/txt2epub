@@ -1,3 +1,4 @@
+# utils.py
 import os
 import sys
 import re
@@ -33,5 +34,4 @@ def ensure_dirs(root_path, subdirs):
                 os.makedirs(full_path)
                 print(f"[Init] 创建目录: {full_path}")
             except OSError as e:
-                # 抛出具体的错误信息
                 raise PermissionError(f"无法创建目录 '{full_path}'。请检查是否有写入权限或磁盘已满。\n系统错误: {e}")

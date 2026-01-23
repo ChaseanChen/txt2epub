@@ -1,14 +1,13 @@
+# main.py
 import os
 import time
+import traceback
 from typing import List, Tuple, Optional
 from utils import get_app_root, sanitize_filename, ensure_dirs
 from converter import EPubGenerator
 
 def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
-    """
-    处理文件选择逻辑
-    Returns: List of (filename, title, author)
-    """
+    """处理文件选择逻辑"""
     txt_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.txt')]
     
     if not txt_files:
@@ -25,7 +24,6 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
     while True:
         choice = input("\n请选择 (序号 或 A): ").strip().lower()
         
-        # 批量模式
         if choice == 'a':
             print(">> 已选择全部文件")
             print(">> 如果直接回车，程序将使用文件名作为书名，'Unknown' 作为作者。")
@@ -33,14 +31,11 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
             
             selected_files = []
             for f in txt_files:
-                # 默认逻辑：文件名即书名
                 title = os.path.splitext(f)[0]
-                # 如果用户没输统一作者，则设为 Unknown，或者可以尝试从文件名提取 (如: 书名-作者.txt)
                 author = batch_author_input if batch_author_input else "Unknown"
                 selected_files.append((f, title, author))
             return selected_files
         
-        # 单选模式
         else:
             try:
                 idx = int(choice) - 1
@@ -62,7 +57,6 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
 
 def select_font(fonts_dir: str) -> Optional[str]:
     """处理字体选择逻辑"""
-    # 过滤非字体文件
     font_files = [f for f in os.listdir(fonts_dir) if f.lower().endswith(('.ttf', '.otf'))]
     
     if not font_files:
@@ -70,10 +64,13 @@ def select_font(fonts_dir: str) -> Optional[str]:
         return None
 
     print("\n[2] 选择字体:")
-    print("  [0] 不使用嵌入字体 (推荐，文件更小)")
+    print("  [0] 不使用嵌入字体 (推荐，文件更小，兼容性更好)")
     for i, f in enumerate(font_files):
-        file_size_mb = os.path.getsize(os.path.join(fonts_dir, f)) / (1024 * 1024)
-        print(f"  [{i+1}] {f} ({file_size_mb:.1f} MB)")
+        try:
+            file_size_mb = os.path.getsize(os.path.join(fonts_dir, f)) / (1024 * 1024)
+            print(f"  [{i+1}] {f} ({file_size_mb:.1f} MB)")
+        except OSError:
+            print(f"  [{i+1}] {f} (Size unknown)")
     
     while True:
         c = input("字体序号: ").strip()
@@ -89,7 +86,6 @@ def select_font(fonts_dir: str) -> Optional[str]:
     return None
 
 def main():
-    # 1. 初始化路径
     app_root = get_app_root()
     input_dir = os.path.join(app_root, 'input')
     output_dir = os.path.join(app_root, 'output')
@@ -103,32 +99,30 @@ def main():
         return
 
     print("\n" + "=" * 50)
-    print("     TXT 转 EPUB 转换器 (Pro Edition)")
+    print("     TXT 转 EPUB 转换器 (Architect Edition)")
     print("=" * 50)
     print(f"工作目录: {app_root}")
 
-    # 2. 选择文件
     tasks = select_files(input_dir)
     if not tasks:
         input("按回车键退出...")
         return
 
-    # 3. 选择字体
     font_path = select_font(fonts_dir)
 
-    # 4. 执行转换
     print("\n" + "=" * 50)
     print(f"开始处理 {len(tasks)} 个任务...")
     print("=" * 50)
     
     generator = EPubGenerator(font_path=font_path)
     start_time = time.time()
-    
     success_count = 0
+    
     for i, (fname, book_title, book_author) in enumerate(tasks):
         print(f"\n>>> 任务 ({i+1}/{len(tasks)})")
         
         txt_full_path = os.path.join(input_dir, fname)
+        # 清理文件名，防止特殊字符导致保存失败
         safe_name = sanitize_filename(book_title)
         epub_full_path = os.path.join(output_dir, f"{safe_name}.epub")
         
@@ -139,9 +133,8 @@ def main():
             print("\n[!] 任务被用户中断。")
             break
         except Exception as e:
-            # 捕获所有未预料的错误，防止单个文件失败导致整个批处理崩溃
             print(f"  [Fail] 处理文件 '{fname}' 时发生错误: {e}")
-            import traceback
+            # 打印堆栈信息以便调试
             traceback.print_exc()
 
     duration = time.time() - start_time
