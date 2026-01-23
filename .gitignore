@@ -1,0 +1,137 @@
+# ==========================
+# 操作系统 & 通用临时文件
+# ==========================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*.swp
+*.old
+*.seed
+*.pid
+*.pid.lock
+
+# ==========================
+# 日志文件 (Logs)
+# ==========================
+*.log
+*.log.*
+*.logs
+pip-log.txt
+pip-delete-this-directory.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==========================
+# 编辑器 & IDE 配置
+# ==========================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains (Pycharm, IntelliJ, etc)
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ==========================
+# 密钥与环境变量
+# ==========================
+.env
+.dotenv
+.env.*
+env.bak/
+venv.bak/
+
+# ==========================
+# Python 开发
+# ==========================
+# 字节码
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 虚拟环境
+.venv/
+env/
+venv/
+ENV/
+
+# 包分发与构建 (Distribution / Build)
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# 测试与覆盖率 (Testing & Coverage)
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# 类型检查 (Type Checking)
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Cython
+cython_debug/
+
+# ==========================
+# Node.js / 前端
+# ==========================
+node_modules/
+.cache/
+
+# ==========================
+# 数据库文件 (本地开发用)
+# ==========================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================
+# 压缩包与归档
+# ==========================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.gz
+
+# ==========================
+# 其他语言/工具 
+# ==========================
+# Java
+*.class
+*.jar
+*.war
+
+# LaTeX
+*.aux
+*.out
+*.toc
+
+# ==========================
+# 项目自定义忽略
+# ==========================
+draft/
+draft*.md 
