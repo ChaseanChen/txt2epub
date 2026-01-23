@@ -1,21 +1,64 @@
 # main.py
 import os
-# import time
 import traceback
 from typing import List, Tuple, Optional
 from utils import get_app_root, sanitize_filename, ensure_dirs
-# 注意：这里导入的是我们改名后的 EPubBuilder，保持 converter 文件名
+# 注意：这里导入的是我们改名后的 EPubBuilder
 from converter import EPubBuilder 
 
-DEFAULT_CSS_TEMPLATE = """/* EPUB 样式表 */
-body { line-height: 1.8; text-align: justify; margin: 0 5px; background-color: #fcfcfc; }
-p { text-indent: 2em; margin: 0.8em 0; font-size: 1em; }
-h1 { font-weight: bold; text-align: center; margin: 2em 0 1em 0; font-size: 1.6em; page-break-before: always; color: #333; }
-img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
+# 改进后的 CSS：处理了场景分隔，优化了段落间距
+DEFAULT_CSS_TEMPLATE = """/* EPUB 样式表 v2 */
+body { 
+    line-height: 1.8; 
+    text-align: justify; 
+    margin: 0; 
+    padding: 0 10px;
+    background-color: #fcfcfc; 
+    font-family: sans-serif;
+}
+
+/* 标题样式 */
+h1 { 
+    font-weight: bold; 
+    text-align: center; 
+    margin: 2em 0 1.5em 0; 
+    font-size: 1.6em; 
+    line-height: 1.3;
+    page-break-before: always; 
+    color: #333; 
+}
+
+/* 段落核心样式：首行缩进 2em，替代源文件空格 */
+p { 
+    text-indent: 2em; 
+    margin: 0 0 0.8em 0; /* 仅保留下边距，防止上下间距过大 */
+    font-size: 1em; 
+    word-wrap: break-word;
+}
+
+/* 场景分隔符：处理原书中的大段空行 */
+.scene-break {
+    margin: 2em auto;
+    text-align: center;
+    color: #999;
+    font-weight: bold;
+    page-break-inside: avoid;
+}
+
+/* 图片处理 */
+img { 
+    max-width: 100%; 
+    height: auto; 
+    display: block; 
+    margin: 1em auto; 
+}
 """
 
 def init_assets(assets_dir: str):
     css_path = os.path.join(assets_dir, 'style.css')
+    # 为了应用新的 CSS，如果文件存在但内容是旧的，可能需要逻辑去更新
+    # 简单起见，这里假设用户如果想重置样式，会删除 assets 下的 style.css
+    # 或者如果文件不存在则写入
     if not os.path.exists(css_path):
         try:
             with open(css_path, 'w', encoding='utf-8') as f:
@@ -24,7 +67,7 @@ def init_assets(assets_dir: str):
             pass
 
 def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
-    """简单的 CLI 文件选择器 (保持原逻辑)"""
+    """简单的 CLI 文件选择器"""
     if not os.path.exists(input_dir):
         print(f"[!] 目录不存在: {input_dir}")
         return None
@@ -57,7 +100,7 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
     return None
 
 def select_font(fonts_dir: str) -> Optional[str]:
-    """简单的 CLI 字体选择器 (保持原逻辑)"""
+    """简单的 CLI 字体选择器"""
     if not os.path.exists(fonts_dir):
         return None
     font_files = [f for f in os.listdir(fonts_dir) if f.lower().endswith(('.ttf', '.otf'))]
@@ -96,7 +139,7 @@ def main():
         print(f"[Fatal] 权限错误: {e}")
         return
 
-    print("TXT 转 EPUB 工具 (Refactored v2.0)")
+    print("TXT 转 EPUB 工具 (Refactored v2.1 - Smart Paragraph)")
     
     tasks = select_files(dirs['input'])
     if not tasks:
@@ -104,7 +147,7 @@ def main():
 
     font_path = select_font(dirs['fonts'])
 
-    # 初始化 Builder (注入依赖)
+    # 初始化 Builder
     builder = EPubBuilder(font_path=font_path, assets_dir=dirs['assets'])
 
     print(f"\n开始处理 {len(tasks)} 个任务...")

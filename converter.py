@@ -2,6 +2,7 @@
 import os
 import uuid
 import logging
+# import re  # 新增 re 用于更强的文本清洗
 from ebooklib import epub
 from utils import detect_file_encoding
 from parser import TxtParser
@@ -50,13 +51,12 @@ class EPubBuilder:
         css_item = self.resource_mgr.get_css(font_rule, font_family)
         book.add_item(css_item)
 
-        # 4. 解析并构建章节 (核心改进：流式处理)
+        # 4. 解析并构建章节
         parser = TxtParser(txt_path, encoding)
         chapter_items = []
         
         print("  [i] 正在流式解析并构建章节...")
         
-        # 使用生成器迭代，内存占用极低
         for chap_idx, (chap_title, chap_content) in enumerate(parser.parse()):
             # 构建 HTML
             file_name = f'chap_{chap_idx}.xhtml'
@@ -87,17 +87,47 @@ class EPubBuilder:
         book.add_author(author)
 
     def _render_chapter_html(self, title, body) -> str:
-        lines = []
-        for line in body.splitlines():
+        """
+        核心改进：智能段落处理
+        1. 归一化换行符
+        2. 保留场景分隔（连续空行）
+        3. 使用 strip() 清洗缩进，依赖 CSS text-indent 进行标准化排版
+        """
+        # 1. 归一化换行符，防止不同平台的差异
+        body = body.replace('\r\n', '\n').replace('\r', '\n')
+        
+        html_parts = [f'<h1>{title}</h1>']
+        
+        # 2. 逐行处理
+        # 使用状态机逻辑：记录连续空行数量
+        raw_lines = body.split('\n')
+        empty_lines_count = 0
+        
+        for line in raw_lines:
+            # 清洗行：去除两端空白（包括全角空格 \u3000）
             clean_line = line.strip()
-            if clean_line:
-                # 简单的 HTML 转义
-                clean_line = (clean_line.replace('&', '&amp;')
-                                        .replace('<', '&lt;')
-                                        .replace('>', '&gt;'))
-                lines.append(f"<p>{clean_line}</p>")
-        body_content = "".join(lines)
-        return f'<h1>{title}</h1>{body_content}'
+            
+            if not clean_line:
+                empty_lines_count += 1
+                continue
+            
+            # 逻辑：如果之前的空行数 >= 2，说明这是一个场景分割（Scene Break）
+            # 我们插入一个视觉分隔符，而不是生成空 <p>
+            if empty_lines_count >= 2:
+                html_parts.append('<div class="scene-break">***</div>')
+            
+            # 重置计数器
+            empty_lines_count = 0
+            
+            # HTML 转义
+            clean_line = (clean_line.replace('&', '&amp;')
+                                    .replace('<', '&lt;')
+                                    .replace('>', '&gt;'))
+            
+            # 包装段落
+            html_parts.append(f"<p>{clean_line}</p>")
+            
+        return "".join(html_parts)
 
     def _write_to_disk(self, book, output_path):
         output_dir = os.path.dirname(output_path)

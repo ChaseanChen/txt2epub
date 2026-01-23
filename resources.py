@@ -1,6 +1,5 @@
 # resources.py
 import os
-# import uuid
 import logging
 from typing import Tuple, Optional
 from ebooklib import epub
@@ -13,7 +12,8 @@ class ResourceManager:
     def __init__(self, assets_dir: Optional[str], font_path: Optional[str] = None):
         self.assets_dir = assets_dir
         self.font_path = font_path
-        self.default_font_family = "'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+        # 优化字体栈，优先使用系统自带的中文字体
+        self.default_font_family = "'PingFang SC', 'Microsoft YaHei', 'Heiti SC', STHeiti, sans-serif"
 
     def get_cover_image(self, txt_path: str) -> Tuple[Optional[str], Optional[bytes], Optional[str]]:
         """
@@ -94,9 +94,11 @@ class ResourceManager:
         )
 
     def _get_fallback_css(self) -> str:
+        # 内置的 fallback 样式，保持和 main.py 中一致的优秀排版
         return '''
-            body { line-height: 1.8; text-align: justify; margin: 0 5px; background-color: #fcfcfc; }
-            p { text-indent: 2em; margin: 0.8em 0; font-size: 1em; }
-            h1 { font-weight: bold; text-align: center; margin: 2em 0 1em 0; font-size: 1.6em; page-break-before: always; color: #333; }
-            img { max-width: 100%; height: auto; }
+            body { line-height: 1.8; text-align: justify; margin: 0; padding: 0 10px; background-color: #fcfcfc; }
+            p { text-indent: 2em; margin: 0 0 0.8em 0; font-size: 1em; }
+            h1 { font-weight: bold; text-align: center; margin: 2em 0 1.5em 0; font-size: 1.6em; page-break-before: always; color: #333; }
+            img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
+            .scene-break { margin: 2em auto; text-align: center; color: #999; font-weight: bold; }
         '''
