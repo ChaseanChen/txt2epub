@@ -16,14 +16,12 @@ class EPubGenerator:
             r'(^\s*(?:第[0-9零一二三四五六七八九十百千]+[章节回卷部]|Chapter\s?\d+).*?$)', 
             re.MULTILINE | re.IGNORECASE
         )
-        # 用于生成 UUID 的固定命名空间（类似域名的作用）
+        # 用于生成 UUID 的固定命名空间
         self.NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "ebook.converter.local")
 
     def _generate_stable_id(self, title: str, author: str) -> str:
         """
         生成基于书名和作者的确定性 UUID。
-        改进点：进行归一化处理（去除空格、转小写），确保无论文件名如何变化，
-        只要核心要素不变，ID 就不变，从而保留阅读进度。
         """
         norm_title = title.strip().lower()
         norm_author = author.strip().lower()
@@ -72,22 +70,20 @@ class EPubGenerator:
             logging.info("未检测到明显章节目录，作为单章处理。")
             return [("正文", content)]
 
-        # 处理序章/前言（第一个匹配项之前的内容）
+        # 处理序章/前言
         preface_end = matches[0].start()
         if preface_end > 0:
             preface_content = content[:preface_end].strip()
-            if len(preface_content) > 50: # 简单的过滤，太短的可能是乱码或元数据
+            if len(preface_content) > 50: 
                 chapters.append(("序言", preface_content))
 
         count = len(matches)
         for i, match in enumerate(matches):
             title = match.group(1).strip()
             start_idx = match.end()
-            # 这里的逻辑是：本章开始到下一章开始前
             end_idx = matches[i+1].start() if i + 1 < count else len(content)
             
             body = content[start_idx:end_idx]
-            # 简单的正文清洗：去除首尾空行，防止章节之间空隙过大
             chapters.append((title, body.strip()))
             
         return chapters
@@ -103,9 +99,6 @@ class EPubGenerator:
         book.set_language('zh-cn')
         book.add_author(author)
         
-        # 调试信息
-        logging.debug(f"Book ID generated: {book_id}")
-
         # 封面处理
         cover_path, cover_ext = self._try_get_cover(txt_path)
         if cover_path:
@@ -136,7 +129,7 @@ class EPubGenerator:
         css_item = epub.EpubItem(uid="style_css", file_name="style.css", media_type="text/css", content=css_content)
         book.add_item(css_item)
 
-        # 读取内容 (增强编码识别)
+        # 读取内容
         content = ""
         try:
             with open(txt_path, 'r', encoding='utf-8') as f:
@@ -159,11 +152,6 @@ class EPubGenerator:
             c = epub.EpubHtml(title=chap_title, file_name=file_name, lang='zh-cn')
             c.add_item(css_item)
             
-            # 增强段落处理：
-            # 1. splitlines() 切分行
-            # 2. strip() 去除每行首尾空白
-            # 3. 过滤空行
-            # 4. 包装 <p> 标签
             lines = []
             for line in chap_body.splitlines():
                 clean_line = line.strip()
@@ -180,9 +168,8 @@ class EPubGenerator:
         book.add_item(epub.EpubNav())
         
         # 定义阅读顺序 (Spine)
-        if book.cover_image: # type: ignore
-            # 如果有封面，通常阅读器会自动处理，不需要手动加入 spine，但为了保险可以配置
-            pass 
+        # 修复点：删除了错误的 if book.cover_image 判断
+        # book.set_cover 会自动处理封面相关的 manifest，我们只需要定义正文顺序
         book.spine = ['nav'] + epub_chapters
 
         # 确保输出目录存在
