@@ -1,9 +1,17 @@
 # utils.py
-
 import os
 import sys
 import re
-from typing import Optional 
+import logging
+from typing import Optional
+
+# [修复] 显式处理 chardet 的定义，防止静态分析报错 "possibly unbound"
+try:
+    import chardet
+    HAS_CHARDET = True
+except ImportError:
+    HAS_CHARDET = False
+    chardet = None  # 关键修复：确保变量名存在
 
 def get_app_root():
     """获取应用程序根目录"""
@@ -13,7 +21,7 @@ def get_app_root():
         return os.path.dirname(os.path.abspath(__file__))
 
 def sanitize_filename(filename):
-    """清理文件名"""
+    """清理文件名，移除非法字符"""
     cleaned = re.sub(r'[\\/*?:"<>|]', "", filename)
     return cleaned.strip().strip('.')
 
@@ -29,18 +37,39 @@ def ensure_dirs(root_path, subdirs):
 
 def detect_file_encoding(file_path: str) -> Optional[str]:
     """
-    尝试检测文件编码。
-    相比原来的暴力尝试，这里封装成函数，便于复用。
+    智能检测文件编码
     """
-    encodings = ['utf-8', 'gb18030', 'gbk', 'big5', 'utf-16']
-    for enc in encodings:
+    # 常用编码列表（作为 fallback）
+    common_encodings = ['utf-8', 'gb18030', 'gbk', 'big5', 'utf-16']
+    
+    # 1. 使用 chardet 进行统计学分析
+    if HAS_CHARDET and chardet is not None:
+        try:
+            with open(file_path, 'rb') as f:
+                raw_data = f.read(50000) # 读取前 50KB 足够判断
+                result = chardet.detect(raw_data)
+                detected_enc = result['encoding']
+                confidence = result['confidence']
+                
+                if detected_enc and confidence > 0.8:
+                    logging.info(f"Chardet 检测编码: {detected_enc} (置信度: {confidence:.2f})")
+                    if detected_enc.lower() in ['gb2312', 'gbk']:
+                        return 'gb18030'
+                    return detected_enc
+        except Exception as e:
+            logging.warning(f"Chardet 检测出错: {e}，将使用回退策略")
+
+    # 2. 暴力尝试 (Fallback)
+    logging.info("使用列表尝试解码...")
+    for enc in common_encodings:
         try:
             with open(file_path, 'r', encoding=enc) as f:
-                # 读取少量内容进行测试，而不是全量读取
                 f.read(4096)
+            logging.info(f"编码探测成功: {enc}")
             return enc
         except UnicodeDecodeError:
             continue
         except Exception:
             break
+            
     return None

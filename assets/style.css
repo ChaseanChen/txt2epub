@@ -1,41 +1,6 @@
-/* EPUB 样式表 (可自由修改) */
-
-/* 全局设置 */
-body {
-    line-height: 1.8;
-    text-align: justify;
-    margin: 0 5px;
-    background-color: #fcfcfc;
-    /* font-family 会由程序根据设置动态插入，这里不需要写 */
-}
-
-/* 段落样式 */
-p {
-    text-indent: 2em;
-    margin: 0.8em 0;
-    font-size: 1em;
-}
-
-/* 标题样式 */
-h1 {
-    font-weight: bold;
-    text-align: center;
-    margin: 2em 0 1em 0;
-    font-size: 1.6em;
-    page-break-before: always;
-    color: #333;
-}
-
-/* 图片样式 */
-img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 1em auto;
-}
-
-/* 封面容器 */
-div.cover {
-    text-align: center;
-    height: 100%;
-}
+/* EPUB 样式表 v2 */
+body { line-height: 1.8; text-align: justify; margin: 0; padding: 0 10px; background-color: #fcfcfc; font-family: sans-serif; }
+h1 { font-weight: bold; text-align: center; margin: 2em 0 1.5em 0; font-size: 1.6em; line-height: 1.3; page-break-before: always; color: #333; }
+p { text-indent: 2em; margin: 0 0 0.8em 0; font-size: 1em; word-wrap: break-word; }
+.scene-break { margin: 2em auto; text-align: center; color: #999; font-weight: bold; page-break-inside: avoid; }
+img { max-width: 100%; height: auto; display: block; margin: 1em auto; }

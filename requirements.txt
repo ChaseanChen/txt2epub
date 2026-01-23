@@ -1,2 +1,4 @@
 EbookLib>=0.17.1
 lxml>=4.9.0
+chardet
+tqdm>=4.64.0
