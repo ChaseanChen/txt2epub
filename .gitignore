@@ -135,3 +135,7 @@ node_modules/
 # ==========================
 draft/
 draft*.md 
+inputs/
+input/
+output/
+outputs/
