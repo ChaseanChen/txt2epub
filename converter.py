@@ -9,13 +9,9 @@ from resources import ResourceManager
 from typing import Optional
 from tqdm import tqdm
 
-# 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class EPubBuilder:
-    """
-    EPUB 构建器
-    """
     def __init__(self, font_path: Optional[str] = None, assets_dir: Optional[str] = None):
         self.resource_mgr = ResourceManager(assets_dir, font_path)
         self.NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "ebook.converter.local")
@@ -33,35 +29,31 @@ class EPubBuilder:
         book = epub.EpubBook()
         self._setup_metadata(book, title, author)
 
-        # 3. 准备资源 (CSS, Font, Cover)
-        # [修复] 预先初始化变量，防止 try 块报错导致变量未绑定
+        # 3. 准备资源
         css_item = None
         font_item = None
         
         try:
-            # 3.1 封面
+            # 封面
             cover_name, cover_data, _ = self.resource_mgr.get_cover_image(txt_path)
             if cover_data:
                 book.set_cover(cover_name, cover_data)
                 logging.info("已设置封面")
             
-            # 3.2 字体与 CSS
+            # 字体
             font_item, font_rule, font_family = self.resource_mgr.get_font_resource()
             if font_item:
                 book.add_item(font_item)
             
-            # 生成 CSS
+            # CSS
             css_item = self.resource_mgr.get_css(font_rule, font_family)
             book.add_item(css_item)
             
         except Exception as e:
             logging.error(f"资源加载部分失败 (非致命): {e}")
-            # 这里不 return，继续处理文本，但需要确保 css_item 存在
 
-        # [修复] 兜底逻辑：如果上述 try 块失败导致 css_item 为空，生成默认 CSS
         if css_item is None:
             logging.warning("使用兜底 CSS 配置")
-            # 获取没有任何自定义字体的默认 CSS
             css_item = self.resource_mgr.get_css("", "sans-serif")
             book.add_item(css_item)
 
@@ -72,26 +64,29 @@ class EPubBuilder:
         print("  [i] 正在构建章节...")
         
         try:
+            # tqdm 在这里可能会因为 generator 不知道总长度而只显示处理的章节数，这没问题
             with tqdm(unit="chap", desc="  解析进度") as pbar:
                 for chap_idx, (chap_title, chap_content) in enumerate(parser.parse()):
-                    # 构建 HTML
                     file_name = f'chap_{chap_idx}.xhtml'
                     c = epub.EpubHtml(title=chap_title, file_name=file_name, lang='zh-cn')
-                    
-                    # 此时 css_item 必然有值（要么是加载成功的，要么是兜底的）
                     c.add_item(css_item)
                     c.content = self._render_chapter_html(chap_title, chap_content)
                     
                     book.add_item(c)
                     chapter_items.append(c)
-                    
                     pbar.update(1)
                     
         except Exception as e:
             logging.error(f"章节解析过程中发生严重错误: {e}")
+            import traceback
+            traceback.print_exc()
             return 
 
         logging.info(f"共生成 {len(chapter_items)} 个章节")
+
+        if not chapter_items:
+            logging.error("未找到任何有效章节，EPUB 生成取消。")
+            return
 
         # 5. 设置目录和 spine
         book.toc = chapter_items
@@ -111,6 +106,7 @@ class EPubBuilder:
         book.add_author(author)
 
     def _render_chapter_html(self, title, body) -> str:
+        # 统一换行符
         body = body.replace('\r\n', '\n').replace('\r', '\n')
         html_parts = [f'<h1>{title}</h1>']
         
@@ -124,11 +120,13 @@ class EPubBuilder:
                 empty_lines_count += 1
                 continue
             
+            # 智能场景分隔符：如果有2个以上空行，插入分隔符
             if empty_lines_count >= 2:
                 html_parts.append('<div class="scene-break">***</div>')
             
             empty_lines_count = 0
             
+            # HTML 转义
             clean_line = (clean_line.replace('&', '&amp;')
                                     .replace('<', '&lt;')
                                     .replace('>', '&gt;'))

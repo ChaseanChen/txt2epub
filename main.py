@@ -1,11 +1,12 @@
 # main.py
 import os
+import re
 import traceback
 from typing import List, Tuple, Optional
 from utils import get_app_root, sanitize_filename, ensure_dirs
 from converter import EPubBuilder
 
-DEFAULT_CSS_TEMPLATE = """/* EPUB 样式表 v2 */
+DEFAULT_CSS_TEMPLATE = """/* EPUB 样式表 v2.1 */
 body { line-height: 1.8; text-align: justify; margin: 0; padding: 0 10px; background-color: #fcfcfc; font-family: sans-serif; }
 h1 { font-weight: bold; text-align: center; margin: 2em 0 1.5em 0; font-size: 1.6em; line-height: 1.3; page-break-before: always; color: #333; }
 p { text-indent: 2em; margin: 0 0 0.8em 0; font-size: 1em; word-wrap: break-word; }
@@ -22,38 +23,57 @@ def init_assets(assets_dir: str):
         except OSError as e:
             print(f"[Warning] 无法初始化默认 CSS: {e}")
 
+def parse_filename_metadata(filename: str) -> Tuple[str, str]:
+    """
+    从文件名猜测书名和作者
+    支持格式: 
+    - <<书名>> 作者.txt
+    - 书名 - 作者.txt
+    - 书名.txt
+    """
+    base = os.path.splitext(filename)[0]
+    
+    # 模式 1: <<书名>> 作者
+    match = re.match(r'《(.*?)》\s*(.*)', base)
+    if match:
+        return match.group(1).strip(), match.group(2).strip() or "Unknown"
+
+    # 模式 2: 书名 - 作者 (或 作者 - 书名，难以区分，默认前者)
+    if ' - ' in base:
+        parts = base.split(' - ')
+        return parts[0].strip(), parts[1].strip()
+    
+    # 模式 3: 仅书名
+    return base, "Unknown"
+
 def parse_selection(choice: str, total_files: int) -> List[int]:
-    """
-    解析用户输入的选择字符串。
-    支持格式:
-    - 'a': 全选
-    - '1': 单选
-    - '1,3,5': 多选
-    - '1-3': 范围 (可选支持，这里先做逗号分隔)
-    """
     choice = choice.strip().lower()
     if not choice:
         return []
-    
     if choice == 'a':
         return list(range(total_files))
     
-    selected_indices = []
-    # 按逗号分割
+    selected_indices = set()
     parts = choice.split(',')
     for part in parts:
         part = part.strip()
-        if not part:
-            continue
-        try:
-            # 尝试解析 '1'
-            idx = int(part) - 1
-            if 0 <= idx < total_files:
-                selected_indices.append(idx)
-        except ValueError:
-            print(f"[!] 忽略无效输入: {part}")
-            
-    return sorted(list(set(selected_indices)))
+        if '-' in part: # 支持范围 1-3
+            try:
+                start, end = map(int, part.split('-'))
+                # 转换为 0-based 索引，并限制范围
+                for i in range(start - 1, end):
+                    if 0 <= i < total_files:
+                        selected_indices.add(i)
+            except ValueError:
+                pass
+        else:
+            try:
+                idx = int(part) - 1
+                if 0 <= idx < total_files:
+                    selected_indices.add(idx)
+            except ValueError:
+                pass
+    return sorted(list(selected_indices))
 
 def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
     """支持多选的 CLI 文件选择器"""
@@ -71,7 +91,7 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
     for i, f in enumerate(txt_files):
         print(f"  [{i+1}] {f}")
     
-    print("\n提示: 输入 'A' 全选，或输入序号（如 '1' 或 '1,3'）")
+    print("\n提示: 输入 'A' 全选，序号 '1'，多选 '1,3'，范围 '1-5'")
     choice = input("请选择: ")
     
     indices = parse_selection(choice, len(txt_files))
@@ -81,22 +101,36 @@ def select_files(input_dir: str) -> Optional[List[Tuple[str, str, str]]]:
         return None
 
     tasks = []
-    # 如果选择了多个文件，通常使用统一配置或默认文件名
     is_batch = len(indices) > 1
     
     if is_batch:
-        print(f"已选择 {len(indices)} 个文件，将使用文件名作为书名。")
-        batch_auth = input("统一设置作者 (默认为 Unknown): ").strip() or "Unknown"
+        print(f"已选择 {len(indices)} 个文件。")
+        print("模式选择:")
+        print("  [1] 自动识别文件名 (书名 - 作者.txt)")
+        print("  [2] 统一指定作者")
+        mode = input("请选择 (默认1): ").strip()
+        
+        batch_auth = None
+        if mode == '2':
+            batch_auth = input("请输入统一作者名 (Unknown): ").strip() or "Unknown"
+
         for idx in indices:
             fname = txt_files[idx]
-            tasks.append((fname, os.path.splitext(fname)[0], batch_auth))
+            if batch_auth:
+                # 统一作者模式，书名取文件名
+                tasks.append((fname, os.path.splitext(fname)[0], batch_auth))
+            else:
+                # 自动识别模式
+                title, author = parse_filename_metadata(fname)
+                tasks.append((fname, title, author))
     else:
-        # 单个文件，允许自定义
+        # 单文件精细设置
         idx = indices[0]
         fname = txt_files[idx]
-        default_title = os.path.splitext(fname)[0]
-        title = input(f"书名 ({default_title}): ").strip() or default_title
-        auth = input("作者 (Unknown): ").strip() or "Unknown"
+        auto_title, auto_auth = parse_filename_metadata(fname)
+        
+        title = input(f"书名 ({auto_title}): ").strip() or auto_title
+        auth = input(f"作者 ({auto_auth}): ").strip() or auto_auth
         tasks.append((fname, title, auth))
         
     return tasks
@@ -109,7 +143,7 @@ def select_font(fonts_dir: str) -> Optional[str]:
         return None
 
     print("\n[2] 选择字体:")
-    print("  [0] 不嵌入")
+    print("  [0] 不嵌入 (使用阅读器默认)")
     for i, f in enumerate(font_files):
         print(f"  [{i+1}] {f}")
     
@@ -140,7 +174,7 @@ def main():
         print(f"[Fatal] 权限错误: {e}")
         return
 
-    print("TXT 转 EPUB 工具 (Enhanced v3.0)")
+    print("TXT 转 EPUB 工具 (Architecture v3.1)")
     
     tasks = select_files(dirs['input'])
     if not tasks:
@@ -153,7 +187,7 @@ def main():
     
     success_cnt = 0
     for i, (fname, title, auth) in enumerate(tasks):
-        print(f"--- 任务 {i+1}/{len(tasks)} ---")
+        print(f"--- 任务 {i+1}/{len(tasks)}: 《{title}》 ---")
         txt_path = os.path.join(dirs['input'], fname)
         epub_path = os.path.join(dirs['output'], f"{sanitize_filename(title)}.epub")
         
@@ -168,8 +202,8 @@ def main():
             traceback.print_exc()
 
     print(f"\n全部完成: 成功 {success_cnt} / 总计 {len(tasks)}")
-    # 在非交互式环境下（如脚本调用），可以注释掉下面这行
-    input("按回车退出...")
+    if not os.getenv("NO_PAUSE"): # 方便脚本调用
+        input("按回车退出...")
 
 if __name__ == "__main__":
     main()
