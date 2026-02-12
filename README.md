@@ -80,7 +80,8 @@ python main.py
 pip install pyinstaller
 pyinstaller -F main.py -n "TXT2EPUB_Converter"
 ```
-打包后的 EXE 文件可以直接在任何 Windows 电脑上运行，无需安装 Python。
+
+打包后的 EXE 文件可以直接在任何 Windows 电脑上运行，无需安装 Python
 
 ## 架构设计说明 (For Developers)
 
