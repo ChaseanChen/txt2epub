@@ -1,4 +1,4 @@
-# TXT2EPUB Pro (Modular Edition)
+# TXT 2 EPUB
 
 **TXT2EPUB Pro** 是一个专业级的小说转换工具，旨在将 `.txt` 文本文件高质量地转换为 `.epub` 电子书格式。
 
@@ -81,7 +81,7 @@ pip install pyinstaller
 pyinstaller -F main.py -n "TXT2EPUB_Converter"
 ```
 
-打包后的 EXE 文件可以直接在任何 Windows 电脑上运行，无需安装 Python
+打包的 EXE 文件可以直接在任何 Windows 电脑上运行，无需安装 Python
 
 ## 架构设计说明 (For Developers)
 
